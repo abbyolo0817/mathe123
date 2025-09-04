@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大家來找碴</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #FAF8F5; /* 柔和的米色背景 */
+            -webkit-tap-highlight-color: transparent;
+        }
+        .stamp-card {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+        }
+        .stamp-slot {
+            aspect-ratio: 1 / 1;
+            border: 2px dashed #D1C7BC;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .stamp-slot.stamped {
+            background-color: transparent; /* 讓 SVG 圖示自己顯示背景 */
+            border-color: #D9534F; /* 邊框改成紅色系 */
+            transform: scale(1.1);
+        }
+        .stamp-icon {
+            width: 85%; /* 稍微放大圖示 */
+            height: 85%;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s ease;
+        }
+        .stamp-slot.stamped .stamp-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .main-button {
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+        }
+        .main-button:active {
+            transform: translateY(2px);
+        }
+        .title-gradient {
+            background: linear-gradient(45deg, #F8B44E, #D9534F);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .custom-modal {
+            transform: scale(0.95);
+            opacity: 0;
+            transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+        }
+        .custom-modal.visible {
+            transform: scale(1);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-8 text-center">
+        <!-- 標題 -->
+        <h1 class="text-3xl sm:text-4xl font-bold title-gradient mb-2">【大家來找碴】</h1>
+        <p class="text-gray-500 mb-6">專注細節，找出所有不同之處！</p>
+        <!-- 使用者名稱 -->
+        <div class="mb-6">
+            <input type="text" id="userName" placeholder="請輸入挑戰者大名" class="w-full px-4 py-2 text-center text-gray-700 bg-gray-100 border-2 border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition">
+        </div>
+        <!-- 集點卡 -->
+        <div id="stampCard" class="stamp-card mb-8">
+            <!-- JS 會自動生成 10 個格子 -->
+        </div>
+        <!-- 按鈕區 -->
+        <div class="space-y-4">
+            <button id="addStampBtn" class="main-button w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                找到了
+            </button>
+            <button id="resetBtn" class="main-button w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg text-sm focus:outline-none">
+                重置
+            </button>
+        </div>
+    </div>
+    <script>
+        const stampCard = document.getElementById('stampCard');
+        const addStampBtn = document.getElementById('addStampBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const userNameInput = document.getElementById('userName');
+        const TOTAL_STAMPS = 10;
+        let currentStamps = 0;
+        let userName = '';
+        // 代表「抓」的圓形印章 SVG 圖示
+        const foundIconSVG = `
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <g>
+                    <circle cx="50" cy="50" r="48" fill="#D9534F" stroke-width="0"/>
+                    <text x="50" y="58" font-family="'Noto Sans TC', sans-serif" font-size="55" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="white">抓</text>
+                </g>
+            </svg>
+        `;
+        // 初始化集點卡
+        function initializeCard() {
+            stampCard.innerHTML = '';
+            for (let i = 0; i < TOTAL_STAMPS; i++) {
+                const slot = document.createElement('div');
+                slot.classList.add('stamp-slot');
+                slot.innerHTML = `<div class="stamp-icon">${foundIconSVG}</div>`;
+                stampCard.appendChild(slot);
+            }
+        }
+        // 更新畫面
+        function updateUI() {
+            const slots = stampCard.querySelectorAll('.stamp-slot');
+            slots.forEach((slot, index) => {
+                if (index < currentStamps) {
+                    slot.classList.add('stamped');
+                } else {
+                    slot.classList.remove('stamped');
+                }
+            });
+            userNameInput.value = userName;
+        }
+        // 儲存進度
+        function saveData() {
+            localStorage.setItem('findGamePoints', currentStamps);
+            localStorage.setItem('findGameUserName', userName);
+        }
+        // 讀取進度
+        function loadData() {
+            currentStamps = parseInt(localStorage.getItem('findGamePoints')) || 0;
+            userName = localStorage.getItem('findGameUserName') || '';
+        }
+        // 骷顱頭獎勵動畫
+        function showSkullReward() {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 transition-opacity duration-500 opacity-0';
+            const skullEmoji = document.createElement('div');
+            skullEmoji.textContent = ':骷髏頭:';
+            skullEmoji.className = 'text-8xl sm:text-9xl transition-transform duration-500 scale-0';
+            overlay.appendChild(skullEmoji);
+            document.body.appendChild(overlay);
+            setTimeout(() => {
+                overlay.classList.remove('opacity-0');
+                skullEmoji.classList.remove('scale-0');
+                skullEmoji.style.transform = 'scale(2)'; // 放大效果
+            }, 10);
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioContext.state === 'suspended') audioContext.resume();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 1.5);
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 2);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 2);
+            setTimeout(() => {
+                overlay.classList.add('opacity-0');
+                skullEmoji.classList.add('scale-0');
+                setTimeout(() => {
+                    document.body.removeChild(overlay);
+                }, 500);
+            }, 2500);
+        }
+        // 自定義 Alert
+        function showCustomAlert(message, callback) {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50';
+            const modal = document.createElement('div');
+            modal.className = 'custom-modal bg-white rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center';
+            modal.innerHTML = `
+                <p class="text-gray-700 mb-4">${message}</p>
+                <button class="ok-btn main-button bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-lg">搞定</button>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            setTimeout(() => modal.classList.add('visible'), 10);
+            const close = () => {
+                modal.classList.remove('visible');
+                setTimeout(() => {
+                    document.body.removeChild(overlay);
+                    if (callback) callback();
+                }, 200);
+            };
+            modal.querySelector('.ok-btn').addEventListener('click', close);
+        }
+        // 自定義 Confirm
+        function showCustomConfirm(message, callback) {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50';
+            const modal = document.createElement('div');
+            modal.className = 'custom-modal bg-white rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center';
+            modal.innerHTML = `
+                <p class="text-gray-700 mb-6">${message}</p>
+                <div class="flex justify-center gap-4">
+                    <button class="cancel-btn main-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-6 rounded-lg">取消</button>
+                    <button class="confirm-btn main-button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg">確定</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            setTimeout(() => modal.classList.add('visible'), 10);
+            const close = (result) => {
+                modal.classList.remove('visible');
+                setTimeout(() => {
+                    document.body.removeChild(overlay);
+                    callback(result);
+                }, 200);
+            };
+            modal.querySelector('.confirm-btn').addEventListener('click', () => close(true));
+            modal.querySelector('.cancel-btn').addEventListener('click', () => close(false));
+        }
+        // 事件監聽
+        addStampBtn.addEventListener('click', () => {
+            if (currentStamps < TOTAL_STAMPS) {
+                currentStamps++;
+                updateUI();
+                saveData();
+                if (currentStamps === TOTAL_STAMPS) {
+                    setTimeout(() => {
+                        showSkullReward();
+                        showCustomAlert(`恭喜，${userName || '挑戰者'}！<br>您已成功集滿十點！:骷髏頭:`);
+                        setTimeout(() => {
+                            currentStamps = 0;
+                            updateUI();
+                            saveData();
+                        }, 3500);
+                    }, 300);
+                }
+            }
+        });
+        resetBtn.addEventListener('click', () => {
+            showCustomConfirm('確定要清除所有紀錄，重新開始嗎？', (result) => {
+                if (result) {
+                    currentStamps = 0;
+                    updateUI();
+                    saveData();
+                }
+            });
+        });
+        userNameInput.addEventListener('input', (e) => {
+            userName = e.target.value;
+            saveData();
+        });
+        // 初始載入
+        window.addEventListener('load', () => {
+            initializeCard();
+            loadData();
+            updateUI();
+        });
+    </script>
+</body>
+</html>
